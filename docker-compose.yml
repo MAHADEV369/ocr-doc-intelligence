@@ -1,0 +1,89 @@
+services:
+  postgres:
+    image: postgres:16.4-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: docintel
+      POSTGRES_USER: docintel
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-docintel}
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./db/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docintel"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7.4-alpine
+    restart: unless-stopped
+    ports: ["127.0.0.1:6379:6379"]
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes: [redisdata:/data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  api:
+    build: .
+    restart: unless-stopped
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment: &env
+      DATABASE_URL: postgresql://docintel:${POSTGRES_PASSWORD:-docintel}@postgres:5432/docintel
+      REDIS_URL: redis://redis:6379/0
+      DOCINTEL_API_TOKEN: ${DOCINTEL_API_TOKEN:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:8000,http://localhost:8001}
+      MAX_UPLOAD_MB: ${MAX_UPLOAD_MB:-50}
+    ports: ["8000:8000"]
+    volumes:
+      - ./data:/app/data
+      - ./company_datasets:/app/company_datasets
+      - ./reports:/app/reports
+      - modelcache:/models
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  chat:
+    build: .
+    restart: unless-stopped
+    command: uvicorn src.chat_app:app --host 0.0.0.0 --port 8001
+    depends_on: [api]
+    environment:
+      <<: *env
+      OLLAMA_URL: http://host.docker.internal:11434
+      DOCINTEL_LLM_MODEL: qwen3.5:9b
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    ports: ["8001:8001"]
+    volumes:
+      - ./data:/app/data
+      - ./company_datasets:/app/company_datasets
+      - modelcache:/models
+
+  worker:
+    build: .
+    restart: unless-stopped
+    command: >
+      celery -A src.worker worker --loglevel=INFO
+      --concurrency=${WORKER_CONCURRENCY:-1} -Q documents
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    environment: *env
+    volumes:
+      - ./data:/app/data
+      - modelcache:/models
+    mem_limit: ${WORKER_MEM_LIMIT:-10g}
+
+volumes:
+  pgdata:
+  redisdata:
+  modelcache:

@@ -1,0 +1,20 @@
+# Generated data, source documents and large artefacts are not committed.
+data/
+company_datasets/
+deliverables/
+models/
+logs/*
+*.zip
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Local configuration and OS files
+.env
+.DS_Store

@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DocIntel — grounded document chat</title>
+<style>
+:root{--bg:#0b0f14;--panel:#111821;--panel2:#16202b;--line:#223041;--text:#e6edf3;--muted:#8fa3b8;--accent:#4da3ff;--good:#35c88b;--warn:#ffb454;--bad:#ff6b6b}
+*{box-sizing:border-box}body{margin:0;font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;background:var(--bg);color:var(--text)}
+.app{display:grid;grid-template-columns:310px 1fr;height:100vh}
+aside{background:var(--panel);border-right:1px solid var(--line);padding:18px;display:flex;flex-direction:column;gap:14px}
+.brand{font-size:19px;font-weight:700;letter-spacing:.2px}.brand span{color:var(--accent)}
+.sub{color:var(--muted);font-size:12px}
+label{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted)}
+select,input[type=file]{width:100%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:9px;padding:9px}
+select{max-height:300px}
+button{background:var(--accent);color:#04121f;border:0;border-radius:9px;padding:9px 12px;font-weight:650;cursor:pointer}
+button.secondary{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+button:disabled{opacity:.5;cursor:not-allowed}
+.card{background:var(--panel2);border:1px solid var(--line);border-radius:12px;padding:12px}
+.stat{display:flex;justify-content:space-between;color:var(--muted);font-size:12px;margin:4px 0}
+.suggest{font-size:12px;color:var(--muted);cursor:pointer;padding:7px 8px;border-radius:8px;border:1px solid transparent}
+.suggest:hover{background:var(--panel2);border-color:var(--line);color:var(--text)}
+main{display:flex;flex-direction:column;min-width:0}
+header{padding:14px 20px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center;background:rgba(11,15,20,.8);backdrop-filter:blur(8px)}
+header .title{font-weight:650}
+.badge{font-size:11px;border:1px solid var(--line);border-radius:999px;padding:3px 9px;color:var(--muted)}
+#chat{flex:1;overflow:auto;padding:22px 20px 10px}
+.msg{max-width:950px;margin:0 auto 16px;display:flex;gap:10px}
+.avatar{width:30px;height:30px;border-radius:8px;background:var(--panel2);border:1px solid var(--line);display:grid;place-items:center;font-size:12px;font-weight:700;flex:none}
+.msg.user .avatar{background:var(--accent);color:#04121f}
+.bubble{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:13px 15px;min-width:0;flex:1}
+.msg.user .bubble{background:#14283b;border-color:#1f4260}
+.bubble p{margin:0 0 9px}.bubble p:last-child{margin:0}
+.bubble table{border-collapse:collapse;width:100%;margin:8px 0;font-size:13px}
+.bubble th,.bubble td{border:1px solid var(--line);padding:6px 8px;text-align:left;vertical-align:top}
+.bubble th{background:var(--panel2)}
+.bubble code{background:#0a121a;padding:1px 5px;border-radius:5px}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.chip{font-size:11px;border:1px solid var(--line);background:var(--panel2);color:var(--muted);border-radius:999px;padding:3px 9px;cursor:pointer}
+.chip:hover{color:var(--text);border-color:var(--accent)}
+.mode{color:var(--good);border-color:#1d5c44}.mode.fallback{color:var(--warn);border-color:#5c4a1d}
+footer{padding:12px 20px 18px;border-top:1px solid var(--line);background:var(--bg)}
+.composer{max-width:950px;margin:0 auto;display:flex;gap:10px;align-items:flex-end;background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:9px}
+textarea{flex:1;resize:none;background:transparent;border:0;color:var(--text);font:inherit;padding:8px;min-height:42px;max-height:160px;outline:none}
+#status{font-size:12px;color:var(--muted);min-height:18px;padding:0 4px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.65);display:none;place-items:center;padding:30px;z-index:10}
+.modal.open{display:grid}
+.modal .inner{background:var(--panel);border:1px solid var(--line);border-radius:14px;max-width:900px;width:100%;max-height:80vh;overflow:auto;padding:18px}
+pre{white-space:pre-wrap;word-break:break-word;color:var(--text);font:12px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace}
+.small{font-size:12px;color:var(--muted)}
+@media(max-width:900px){.app{grid-template-columns:1fr}aside{display:none}}
+</style>
+</head>
+<body>
+<div class="app">
+  <aside>
+    <div>
+      <div class="brand">Doc<span>Intel</span> Chat</div>
+      <div class="sub">Grounded extraction · page-level citations</div>
+    </div>
+    <div class="card">
+      <div class="stat"><span>Documents</span><b id="nDocs">—</b></div>
+      <div class="stat"><span>Pages</span><b id="nPages">—</b></div>
+      <div class="stat"><span>Fields</span><b id="nFields">—</b></div>
+    </div>
+    <div>
+      <label for="doc">Document scope</label>
+      <select id="doc"><option value="">All documents</option></select>
+    </div>
+    <div>
+      <label>Add a PDF</label>
+      <input id="file" type="file" accept="application/pdf">
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <select id="maxPages" title="pages to extract">
+          <option value="3">3 pages</option>
+          <option value="5" selected>5 pages</option>
+          <option value="10">10 pages</option>
+          <option value="25">25 pages</option>
+        </select>
+        <button id="upload" style="flex:1">Extract &amp; add</button>
+      </div>
+      <div id="status"></div>
+    </div>
+    <div>
+      <label>Try asking</label>
+      <div class="suggest" data-q="What was Reliance's revenue and PAT in FY2025-26?">Reliance revenue and PAT</div>
+      <div class="suggest" data-q="Compare HDFC and ICICI GNPA, NNPA, CASA and NIM for Q2 FY2026-27.">HDFC vs ICICI asset quality</div>
+      <div class="suggest" data-q="Summarise TCS management commentary with citations.">TCS management commentary</div>
+      <div class="suggest" data-q="Show Airtel capex, operating cash flow and free cash flow for FY2025-26.">Airtel cash flow</div>
+      <div class="suggest" data-q="What are the segment revenue tables in Reliance's annual report?">Reliance segment tables</div>
+    </div>
+    <div class="small" style="margin-top:auto">Answers use exact extracted values; the local LLM only phrases them. Every number is checked against the source context before display.</div>
+  </aside>
+  <main>
+    <header>
+      <div class="title">Document intelligence chat</div>
+      <div class="badge" id="modelBadge">local · qwen3.5:9b</div>
+    </header>
+    <div id="chat"></div>
+    <footer>
+      <div class="composer">
+        <textarea id="input" placeholder="Ask about revenue, PAT, NPA, cash flow, risks, commentary…"></textarea>
+        <button id="send">Send</button>
+      </div>
+      <div id="status2" class="small"></div>
+    </footer>
+  </main>
+</div>
+<div class="modal" id="modal"><div class="inner"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px"><b id="modalTitle"></b><button class="secondary" id="close">Close</button></div><pre id="modalBody"></pre></div></div>
+<script>
+const $ = s => document.querySelector(s);
+let docs = [], history = [];
+
+function esc(s){return (s||"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]))}
+function inline(s){return esc(s).replace(/\*\*(.+?)\*\*/g,"<b>$1</b>").replace(/`(.+?)`/g,"<code>$1</code>")}
+function render(md){
+  const lines=(md||"").split("\n"); let out=[], table=[];
+  const flush=()=>{ if(!table.length) return; let h=table[0], body=table.slice(2);
+    out.push("<table><thead><tr>"+h.map(c=>"<th>"+inline(c)+"</th>").join("")+"</tr></thead><tbody>"+
+      body.map(r=>"<tr>"+r.map(c=>"<td>"+inline(c)+"</td>").join("")+"</tr>").join("")+"</tbody></table>"); table=[]; };
+  for(const line of lines){
+    if(line.trim().startsWith("|") && line.trim().endsWith("|")){ table.push(line.trim().slice(1,-1).split("|").map(x=>x.trim())); continue; }
+    flush();
+    if(/^#{1,4}\s/.test(line)) out.push("<p><b>"+inline(line.replace(/^#{1,4}\s/,""))+"</b></p>");
+    else if(/^\s*[-*]\s+/.test(line)) out.push("<p>• "+inline(line.replace(/^\s*[-*]\s+/,""))+"</p>");
+    else if(line.trim()==="") out.push("");
+    else out.push("<p>"+inline(line)+"</p>");
+  }
+  flush(); return out.join("");
+}
+function add(role, html, meta){
+  const el=document.createElement("div"); el.className="msg "+role;
+  el.innerHTML='<div class="avatar">'+(role==="user"?"You":"DI")+'</div><div class="bubble">'+html+
+    (meta||"")+'</div>'; $("#chat").appendChild(el); $("#chat").scrollTop=$("#chat").scrollHeight; return el;
+}
+async function loadDocs(){
+  const r=await fetch("/api/documents"); docs=await r.json();
+  const sel=$("#doc"); const cur=sel.value;
+  sel.innerHTML='<option value="">All documents</option>'+docs.map(d=>`<option value="${d.id}">${esc(d.company)} — ${d.doc_type.replace(/_/g," ")} (${d.pages} pp)</option>`).join("");
+  sel.value=cur;
+  const h=await (await fetch("/api/health")).json();
+  $("#nDocs").textContent=h.documents; $("#nPages").textContent=h.pages.toLocaleString(); $("#nFields").textContent=h.fields;
+}
+async function send(text){
+  if(!text.trim()) return;
+  add("user","<p>"+esc(text)+"</p>");
+  $("#input").value=""; $("#send").disabled=true; $("#status2").textContent="Retrieving pages and extracting facts…";
+  try{
+    const r=await fetch("/api/chat",{method:"POST",headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({message:text,doc_id:$("#doc").value||null,history:history.slice(-6)})});
+    const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||"request failed");
+    const meta='<div class="meta"><span class="chip mode '+(d.mode.startsWith("llm")?"":"fallback")+'">'+esc(d.mode)+'</span>'+
+      d.sources.slice(0,8).map((s,i)=>`<span class="chip cite" data-i="${i}">${esc(s.company.replace(" Limited",""))} p.${s.page}</span>`).join("")+'</div>';
+    const el=add("assistant",render(d.answer),meta);
+    el.querySelectorAll(".cite").forEach(ch=>ch.onclick=()=>showSource(d.sources[+ch.dataset.i]));
+    history.push({role:"user",content:text},{role:"assistant",content:d.answer});
+  }catch(e){ add("assistant","<p style='color:#ff6b6b'>"+esc(e.message)+"</p>"); }
+  $("#send").disabled=false; $("#status2").textContent="";
+}
+async function showSource(s){
+  if(!s) return;
+  $("#modalTitle").textContent=s.company+" · page "+s.page+" · "+s.doc_type;
+  $("#modalBody").textContent=s.snippet||"";
+  $("#modal").classList.add("open");
+  if(s.doc_id){ try{ const r=await fetch(`/api/document/${s.doc_id}/page/${s.page}`); const d=await r.json();
+    $("#modalBody").textContent=(d.text||"").slice(0,6000); }catch(e){} }
+}
+$("#send").onclick=()=>send($("#input").value);
+$("#input").addEventListener("keydown",e=>{if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();send($("#input").value)}});
+document.querySelectorAll(".suggest").forEach(x=>x.onclick=()=>send(x.dataset.q));
+$("#close").onclick=()=>$("#modal").classList.remove("open");
+$("#modal").onclick=e=>{if(e.target.id==="modal")$("#modal").classList.remove("open")};
+$("#upload").onclick=async()=>{
+  const f=$("#file").files[0]; if(!f){$("#status").textContent="Choose a PDF first.";return}
+  const fd=new FormData(); fd.append("file",f); fd.append("max_pages",$("#maxPages").value);
+  $("#upload").disabled=true; $("#status").textContent="Running hybrid extraction (PaddleOCR + Docling + validation)…";
+  try{ const r=await fetch("/api/upload",{method:"POST",body:fd}); const d=await r.json();
+    if(!r.ok) throw new Error(d.detail||"upload failed");
+    $("#status").textContent=`Added ${d.pages} pages (${d.summary.scanned_pages} scanned, ${d.summary.tables} tables).`;
+    await loadDocs(); $("#doc").value=d.doc_id;
+  }catch(e){$("#status").textContent="Upload failed: "+e.message}
+  $("#upload").disabled=false;
+};
+add("assistant",render("Ask about any of the 10 companies or upload a PDF. Numeric answers come straight from extracted fields with page citations; qualitative answers use the local LLM and the retrieved pages."));
+loadDocs();
+</script>
+</body>
+</html>

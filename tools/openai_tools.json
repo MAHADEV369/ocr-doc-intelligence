@@ -1,0 +1,83 @@
+{
+  "name": "docintel_tools",
+  "description": "Tools for grounded extraction over Indian corporate filings. Use FACTS for numbers and SEARCH for qualitative evidence; always cite company and page.",
+  "tools": [
+    {
+      "type": "function",
+      "function": {
+        "name": "search_documents",
+        "description": "Full-text search across extracted annual reports, quarterly results and investor presentations. Returns snippets with company, document id, type and page.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "query": {"type": "string", "description": "Keywords or a natural-language question."},
+            "doc_id": {"type": "string", "description": "Optional document id to scope the search."},
+            "top_k": {"type": "integer", "default": 6}
+          },
+          "required": ["query"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_financials",
+        "description": "Return exact extracted financial fields with value, unit, period, reporting basis, source page and validation status. Never invent numbers; use this for numeric answers.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "company": {"type": "string"},
+            "doc_id": {"type": "string"},
+            "field_name": {"type": "string", "description": "e.g. revenue, pat, ebitda, cfo, gnpa, casa"}
+          }
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "get_page",
+        "description": "Return the full text and tables of one page for verification.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "doc_id": {"type": "string"},
+            "page": {"type": "integer"}
+          },
+          "required": ["doc_id", "page"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "ask_documents",
+        "description": "Ask a grounded question. Structured numbers are returned deterministically; qualitative answers use retrieved pages and the local LLM. Includes citations.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "question": {"type": "string"},
+            "doc_id": {"type": "string"}
+          },
+          "required": ["question"]
+        }
+      }
+    },
+    {
+      "type": "function",
+      "function": {
+        "name": "extract_pdf",
+        "description": "Run the hybrid extractor on a local PDF path and add it to the searchable index.",
+        "parameters": {
+          "type": "object",
+          "properties": {
+            "path": {"type": "string"},
+            "max_pages": {"type": "integer", "default": 5},
+            "company": {"type": "string"}
+          },
+          "required": ["path"]
+        }
+      }
+    }
+  ]
+}
