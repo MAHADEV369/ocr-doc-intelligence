@@ -10,3 +10,4 @@ pandera==0.29.0
 python-multipart==0.0.20
 pytest==9.0.1
 requests==2.34.2
+jiwer==4.0.0
